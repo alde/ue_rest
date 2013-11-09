@@ -1,0 +1,5 @@
+database:
+  user: '<<username>>'
+  host: '<<host>>'
+  password: '<<password>>'
+  table: '<<database_table>>'
