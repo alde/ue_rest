@@ -1,10 +1,13 @@
 module UnknownEntity
   class Character
 
-    attr_accessor :conn, :chars, :all_shares, :all_chars, :loot_value
+    attr_accessor :conn, :chars, :all_shares, :all_chars, :loot_value, :all_adj
+    attr_accessor :loots
 
     def initialize conn
       @chars = {}
+      @all_adj = {}
+      @loots = {}
       @conn = conn
       @conn.query_options.merge!({symbolize_keys: true, cast_booleans: true})
     end
@@ -17,9 +20,62 @@ module UnknownEntity
       get_unique_char id
     end
 
+    def adjustments id
+      get_adjustments id
+    end
+
+    def loots id
+      get_char_loots id
+    end
+
     private
-      def get_char_adjustments id
-        0
+      ##
+      # Get items looted by character.
+      #
+      # return: Hash
+      def get_char_loots id
+        if @loots[id].nil? then
+          sql = <<SQL
+SELECT l.id, i.name, l.price, l.heroic
+  FROM loots AS l
+  JOIN items AS i
+  WHERE l.character_id = #{id}
+  AND l.item_id = i.id
+SQL
+          loots = []
+          conn.query(sql).each {
+            |r| loots << {
+              name: r[:name],
+              price: r[:price],
+              heroic: r[:heroic],
+              _links: [
+                { rel: :item, href: "/api/item/#{r[:id]}" }
+              ]
+            }
+          }
+          @loots[id] = loots
+        end
+
+        @loots[id]
+      end
+
+      ##
+      # Get total adjustments
+      #
+      # return: float
+      def total_adjustments
+        if @total_adjustments.nil? then
+          sql = <<SQL
+SELECT SUM(shares) AS adj
+  FROM adjustments AS a
+  JOIN characters AS c
+  ON c.id = a.character_id
+  AND c.active = 1
+SQL
+          @total_adjustments = conn.query(sql).first[:adj]
+        end
+
+        @total_adjustments
       end
 
       ##
@@ -53,7 +109,7 @@ SELECT SUM(number_of_shares) AS shares
   JOIN characters AS c ON cr.character_id = c.id
   AND c.active = 1
 SQL
-          @all_shares = conn.query(sql).first[:shares]
+          @all_shares = conn.query(sql).first[:shares] + total_adjustments
         end
 
         @all_shares
@@ -109,7 +165,7 @@ SQL
         shares = get_char_shares id
         spent = get_dkp_spent id
 
-        earned = shares * share_value
+        earned = (shares + adj) * share_value
         dkp = earned - spent
 
         {
@@ -131,8 +187,11 @@ SQL
           arr = []
           conn.query(sql).each {
             |row| arr << {
-              id: row['id'],
-              name: row['name']
+              id: row[:id],
+              name: row[:name],
+              _links: [
+                { rel: :character, href: "/api/character/#{row[:id]}" }
+              ]
             }
           }
           @all_chars = arr
@@ -155,16 +214,38 @@ SELECT c.name as name, cl.name AS class, c.active
   WHERE c.character_class_id = cl.id AND c.id = #{id}
 SQL
 
-          char = {}
-          conn.query(sql).each { |row| char = row }
+          char = conn.query(sql).first
 
-          char[:shares] = get_char_shares(id).round(2)
+          char[:shares] = (get_char_shares(id) + get_char_adjustments(id)).round(2)
           char[:dkp] = get_char_dkp id
 
           @chars[id] = char
         end
 
         @chars[id]
+      end
+
+      def get_char_adjustments id
+        if @chars[id][:adjustments].nil? then
+          sql = <<SQL
+SELECT SUM(shares) AS adj
+  FROM adjustments WHERE character_id = #{id}
+SQL
+          @chars[id][:adjustments] = conn.query(sql).first[:adj] || 0
+        end
+
+        @chars[id][:adjustments]
+      end
+
+      def get_adjustments id
+        if @all_adj[id].nil? then
+          sql = <<SQL
+SELECT comment, date, shares FROM adjustments WHERE character_id = #{id}
+SQL
+          @all_adj[id] = conn.query(sql).each
+        end
+
+        @all_adj[id]
       end
   end
 end

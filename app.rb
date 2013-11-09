@@ -41,9 +41,9 @@ module UnknowEntity
         get "/" do
           characters = char.all
           {
-            links: {
-              character: '/api/character/{id}'
-            },
+            _links: [
+              { rel: :self, href: '/api/character/' }
+            ],
             data: {
               characters: characters
             }
@@ -59,11 +59,42 @@ module UnknowEntity
             character = char.unique id
 
             {
-              links: {
-                loot: "/api/character/#{id}/loot",
-                raids: "/api/character/#{id}/raids"
-              },
+              _links: [
+                  { rel: :self, href: "/api/character/#{id}" },
+                  { rel: :loots, href: "/api/character/#{id}/loots" },
+                  { rel: :raids, href: "/api/character/#{id}/raids" },
+                  { rel: :adjustments, href: "/api/character/#{id}/adjustments" }
+              ],
               data: character
+            }
+          end
+          get '/loots' do
+            id = params[:id]
+            loots = char.loots id
+            {
+              _links: [
+                { rel: :self, href: "/api/character/#{id}/loots" }
+              ],
+              data: loots
+            }
+          end
+
+          get '/raids' do
+            {
+              _links: [
+                { rel: :self, href: "/api/character/#{id}/raids" }
+              ]
+            }
+          end
+
+          get '/adjustments' do
+            id = params[:id]
+            character_adjustment = char.adjustments(id)
+            {
+              _links: [
+                { rel: :self, href: "/api/character/#{id}/adjustments" }
+              ],
+              data: character_adjustment
             }
           end
         end
