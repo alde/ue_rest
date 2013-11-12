@@ -8,6 +8,10 @@ module UnknowEntity
     attr_accessor :character, :config, :mysql_client
 
     helpers do
+      def root
+        { rel: :root, href: '/api' }
+      end
+
       def conf
         @config ||= YAML.load_file 'settings.yml'
       end
@@ -30,9 +34,9 @@ module UnknowEntity
 
     get '/' do
       {
-        links: {
-          characters: '/api/character/'
-        }
+        _links: [
+          { rel: :characters, href: '/api/character/' }
+        ]
       }
     end
 
@@ -42,7 +46,8 @@ module UnknowEntity
           characters = char.all
           {
             _links: [
-              { rel: :self, href: '/api/character/' }
+              { rel: :self, href: '/api/character/' },
+              root
             ],
             data: {
               characters: characters
@@ -60,6 +65,7 @@ module UnknowEntity
 
             {
               _links: [
+                  root,
                   { rel: :self, href: "/api/character/#{id}" },
                   { rel: :loots, href: "/api/character/#{id}/loots" },
                   { rel: :raids, href: "/api/character/#{id}/raids" },
@@ -73,6 +79,7 @@ module UnknowEntity
             loots = char.loots id
             {
               _links: [
+                root,
                 { rel: :self, href: "/api/character/#{id}/loots" }
               ],
               data: loots
@@ -82,6 +89,7 @@ module UnknowEntity
           get '/raids' do
             {
               _links: [
+                root,
                 { rel: :self, href: "/api/character/#{id}/raids" }
               ]
             }
@@ -92,6 +100,7 @@ module UnknowEntity
             character_adjustment = char.adjustments(id)
             {
               _links: [
+                root,
                 { rel: :self, href: "/api/character/#{id}/adjustments" }
               ],
               data: character_adjustment
